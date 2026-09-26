@@ -12,8 +12,12 @@ COPY main.go .
 RUN CGO_ENABLED=0 go build -o /out/scorecard-server .
 
 FROM gcr.io/distroless/static-debian12
-COPY --from=build /out/scorecard-server /app/scorecard-server
-COPY web/ /app/web/
+COPY --from=build --chmod=755 /out/scorecard-server /app/scorecard-server
+# --chmod: the source files are 640 on disk (no "other" read bit), and the
+# pod runs as uid 1000 while COPY lands them owned by root -- without this,
+# the server can't open them, and Go's FileServer silently falls back to a
+# directory listing instead of erroring.
+COPY --chmod=644 web/ /app/web/
 WORKDIR /app
 ENV WEB_DIR=/app/web \
     DB_PATH=/data/scores.db \
