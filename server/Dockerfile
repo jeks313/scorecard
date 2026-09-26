@@ -1,0 +1,22 @@
+# scorecard-server — hosted scorecard with SQLite-backed history, for k3s.
+#
+# Build:  ./build.sh
+# Test:   podman run --rm -p 8080:8080 -v /tmp/scores:/data ghcr.io/jeks313/scorecard:latest
+FROM docker.io/library/golang:1.27-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY main.go .
+# modernc.org/sqlite is pure Go, so CGO_ENABLED=0 works fine and keeps the
+# final image tiny (no libc needed for the sqlite driver itself).
+RUN CGO_ENABLED=0 go build -o /out/scorecard-server .
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=build /out/scorecard-server /app/scorecard-server
+COPY web/ /app/web/
+WORKDIR /app
+ENV WEB_DIR=/app/web \
+    DB_PATH=/data/scores.db \
+    PORT=8080
+EXPOSE 8080
+ENTRYPOINT ["/app/scorecard-server"]

@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scorecard</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1a6f4b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Scorecard">
+<style>
+:root{
+  --bg:#fff; --fg:#111; --muted:#777; --line:#dcdcdc; --soft:#f6f6f6;
+  --accent:#1a6f4b; --chipOn:#eaf5ef; --danger:#a33;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#151515; --fg:#eee; --muted:#8d8d8d; --line:#333; --soft:#1e1e1e;
+         --accent:#5fbf90; --chipOn:#1d2f27; --danger:#d97a7a; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg)}
+body{
+  font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:14px 14px 64px; max-width:900px; margin:0 auto;
+  -webkit-text-size-adjust:100%;
+}
+input,button,select{font:inherit;color:inherit}
+input{background:transparent;border:0}
+input:focus{outline:2px solid var(--accent);outline-offset:-2px}
+
+/* ---------- title row ---------- */
+.meta{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;margin-bottom:10px}
+#title{flex:1 1 auto;font-size:22px;font-weight:600;min-width:0;
+       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#title.none{color:var(--muted);font-weight:400}
+#gameDate{border-bottom:1px solid var(--line);padding:3px 2px;color:var(--muted)}
+.dir{
+  border:1px solid var(--line); background:var(--soft); border-radius:999px;
+  padding:4px 11px; font-size:13px; color:var(--muted); cursor:pointer; white-space:nowrap;
+}
+.dir b{color:var(--fg);font-weight:600}
+
+/* ---------- chip rows (games + players) ---------- */
+.rowhead{
+  display:flex;align-items:baseline;gap:10px;margin:0 0 6px;
+  font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+}
+.rowhead button{
+  border:0;background:transparent;color:var(--muted);cursor:pointer;
+  font-size:12px;text-transform:uppercase;letter-spacing:.08em;padding:0;
+  margin-left:auto;   /* sit at the right edge so it reads as an action */
+}
+.rowhead button:hover{color:var(--fg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}
+.chip{
+  border:1px solid var(--line);background:transparent;color:var(--muted);
+  border-radius:999px;padding:5px 13px;font-size:14px;cursor:pointer;
+  white-space:nowrap;
+}
+.chip:hover{color:var(--fg)}
+.chip.on{border-color:var(--accent);background:var(--chipOn);color:var(--fg);font-weight:500}
+.chip.add{color:var(--accent);border-style:dashed}
+.chip.newname{padding:0;border-style:solid;border-color:var(--accent)}
+.chip.newname input{width:120px;padding:5px 13px;border-radius:999px;text-align:center}
+.editwrap{
+  display:flex;align-items:center;gap:2px;border:1px solid var(--line);
+  border-radius:999px;padding:0 4px 0 0;
+}
+.editwrap input{width:100px;padding:5px 4px 5px 12px;font-size:14px}
+.editwrap .x{
+  border:0;background:transparent;color:var(--muted);cursor:pointer;
+  padding:0 6px;font-size:15px;opacity:.5;
+}
+.editwrap .x:hover{opacity:1;color:var(--danger)}
+
+/* ---------- scoreboard table ---------- */
+/* The card scrolls in its own box, not the page. That is what keeps the
+   running totals in thead pinned in view -- sticky anchors to the nearest
+   scrolling ancestor, so the header and the holes must share one. */
+.scroll{
+  overflow:auto; -webkit-overflow-scrolling:touch;
+  max-height:calc(100dvh - 300px); min-height:220px;
+  overscroll-behavior:contain;
+}
+/* Deliberately `separate`, not `collapse`: with collapsed borders the table
+   owns them rather than the cell, so a sticky cell can't paint over the seam
+   and scrolled-away scores bleed through its left edge. */
+table{border-collapse:separate;border-spacing:0;width:100%}
+th,td{
+  border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+  padding:0; text-align:center;
+}
+thead th{border-top:1px solid var(--line)}
+th:first-child,td:first-child{border-left:1px solid var(--line)}
+
+thead th{
+  position:sticky; top:0; z-index:3;
+  background:var(--bg); vertical-align:top; padding:6px 4px 5px;
+  min-width:86px;
+}
+thead th.idx{min-width:44px;width:44px;left:0;z-index:4}
+.pname{
+  font-weight:600;padding:2px 12px 0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.total{font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:2px}
+.rank{font-size:11px;color:var(--muted);height:14px;letter-spacing:.02em}
+.rank.lead{color:var(--accent);font-weight:600}
+.drop{
+  position:absolute;top:2px;right:3px; width:18px;height:18px; line-height:16px;
+  border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;
+  opacity:.45; border-radius:4px;
+}
+.drop:hover{opacity:1;color:var(--danger);background:var(--soft)}
+th{position:relative}
+
+tbody td.idx{
+  position:sticky;left:0;z-index:2;background:var(--bg);
+  color:var(--muted);font-size:13px;width:44px;
+}
+tbody tr:nth-child(even) td{background:var(--soft)}
+tbody tr:nth-child(even) td.idx{background:var(--soft)}
+td.pad{border:0;background:transparent!important}
+.cell{
+  width:100%;height:40px;text-align:center;font-size:17px;
+  font-variant-numeric:tabular-nums;
+}
+.nobody{
+  border:1px dashed var(--line);border-radius:8px;padding:26px 14px;
+  text-align:center;color:var(--muted);font-size:14px;
+}
+
+/* ---------- actions ---------- */
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.actions button{
+  border:1px solid var(--line);background:var(--bg);border-radius:6px;
+  padding:6px 12px;font-size:14px;cursor:pointer;color:var(--muted);
+}
+.actions button:hover{color:var(--fg);border-color:var(--muted)}
+.actions .primary{color:var(--fg);font-weight:500}
+
+/* ---------- history ---------- */
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+   font-weight:600;margin:34px 0 8px}
+.game{
+  display:flex;align-items:baseline;gap:10px;padding:9px 2px;
+  border-bottom:1px solid var(--line);cursor:pointer;
+}
+.game:hover{background:var(--soft)}
+.game.on{font-weight:600}
+.game .d{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;flex:0 0 84px}
+.game .n{flex:0 0 auto}
+.game .w{color:var(--muted);font-size:13px;flex:1 1 auto;overflow:hidden;
+         text-overflow:ellipsis;white-space:nowrap}
+.game .x{border:0;background:transparent;color:var(--muted);cursor:pointer;
+         opacity:.4;padding:0 4px}
+.game .x:hover{opacity:1;color:var(--danger)}
+.empty{color:var(--muted);font-size:14px;padding:8px 2px}
+#toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+  background:var(--fg);color:var(--bg);padding:7px 14px;border-radius:6px;
+  font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+#toast.show{opacity:.92}
+
+/* On a phone, tighten up so the four default players fit without
+   sideways scrolling (44px gutter + 4 x 72px < 375px viewport). */
+@media (max-width:430px){
+  thead th{min-width:70px}
+  thead th.idx,tbody td.idx{min-width:36px;width:36px}
+  .total{font-size:23px}
+  .pname{padding:2px 10px 0;font-size:14px}
+  .chip{padding:5px 10px;font-size:13px}
+  .chips{gap:5px}
+  .editwrap input{width:84px}
+}
+</style>
+</head>
+<body>
+
+<div class="meta">
+  <div id="title">Loading…</div>
+  <input id="gameDate" type="date">
+  <button id="dirBtn" class="dir"></button>
+</div>
+
+<div class="rowhead"><span>Game</span><button id="editGamesBtn">Edit</button></div>
+<div class="chips" id="gameChips"></div>
+
+<div class="rowhead"><span>Players</span><button id="editPlayersBtn">Edit</button></div>
+<div class="chips" id="playerChips"></div>
+
+<div id="card">
+  <div class="scroll">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+  <div class="actions">
+    <button id="addRow" class="primary">+ Row</button>
+    <button id="delRow">− Row</button>
+    <button id="newGame" class="primary">New game</button>
+    <button id="copy">Copy</button>
+    <button id="clear">Clear scores</button>
+  </div>
+</div>
+<div class="nobody" id="nobody" hidden>Tap a player above to start scoring.</div>
+
+<h2>Past games</h2>
+<div id="history"></div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const DEFAULT_ROSTER = ['Chris','Christine','Michael','David'];
+const DEFAULT_GAMES  = ['Mini Golf','Scrabble'];
+
+let editPlayers = false, editGames = false;
+let db = null;
+
+/* ---------------- persistence ----------------
+   Scores live server-side in SQLite (one shared document, same shape the
+   github.io build keeps in localStorage) so history follows you across
+   devices instead of staying pinned to whichever phone played the round. */
+function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function today(){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+
+let saveTimer = null, retryTimer = null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persistNow, 400);
+}
+function persistNow(){
+  clearTimeout(retryTimer);
+  fetch('/api/db', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({data: db})
+  }).then(r => {
+    if (!r.ok) throw new Error('save failed: ' + r.status);
+  }).catch(() => {
+    toast('Offline — retrying');
+    retryTimer = setTimeout(persistNow, 3000);
+  });
+}
+
+function boot(){
+  fetch('/api/db').then(r => r.json()).then(body => {
+    db = (body && body.data) ? migrate(body.data) : fresh();
+    if (!body || !body.data) persistNow();  // seed the store on first run
+    render();
+    registerSW();
+  }).catch(() => {
+    toast('Could not reach server');
+    db = fresh();
+    render();
+    registerSW();
+  });
+}
+function fresh(){
+  const roster = DEFAULT_ROSTER.map(n => ({id: uid('p'), name: n}));
+  const g = blank(roster.map(p => p.id));
+  g.name = DEFAULT_GAMES[0];
+  return { roster, gameNames: DEFAULT_GAMES.slice(), games:[g], currentId:g.id };
+}
+
+/* Games written before the roster existed stored player names inline and
+   scores as rows[hole][col]. Lift those names into the roster and re-key
+   scores by player id so nothing saved earlier is lost. */
+function migrate(d){
+  d.roster = Array.isArray(d.roster) ? d.roster : [];
+  const byName = new Map(d.roster.map(p => [p.name.toLowerCase(), p]));
+  const findPerson = name => {
+    const k = name.toLowerCase();
+    if (!byName.has(k)){
+      const p = {id: uid('p'), name};
+      d.roster.push(p); byName.set(k, p);
+    }
+    return byName.get(k);
+  };
+  DEFAULT_ROSTER.forEach(findPerson);
+
+  d.games = d.games.map(g => {
+    if (g.scores) return g;
+    const rows = Array.isArray(g.rows) ? g.rows : [];
+    const old  = Array.isArray(g.players) ? g.players : [];
+    const players = [], scores = {};
+    old.forEach((name, i) => {
+      const c = rows.map(r => (r && r[i] != null) ? String(r[i]) : '');
+      const used  = c.some(v => v.trim() !== '');
+      const named = String(name || '').trim();
+      if (!named && !used) return;              // empty placeholder column, drop it
+      const p = findPerson(named || ('Player ' + (i+1)));
+      if (players.includes(p.id)) return;       // same person twice in one game
+      players.push(p.id);
+      scores[p.id] = c;
+    });
+    return {
+      id: g.id, name: g.name || '', date: g.date || today(), dir: g.dir || 'low',
+      players, rowCount: rows.length || 9, scores
+    };
+  });
+
+  // Remembered game names: seed the defaults, keep anything already played.
+  const seen = new Map();
+  DEFAULT_GAMES.forEach(n => seen.set(n.toLowerCase(), n));
+  (Array.isArray(d.gameNames) ? d.gameNames : []).forEach(n => {
+    if (n && n.trim()) seen.set(n.trim().toLowerCase(), n.trim());
+  });
+  d.games.forEach(g => {
+    const n = (g.name || '').trim();
+    if (n) seen.set(n.toLowerCase(), n);
+  });
+  d.gameNames = [...seen.values()];
+  return d;
+}
+
+function blank(players){
+  const ids = players || [];
+  const scores = {};
+  ids.forEach(id => scores[id] = Array(9).fill(''));
+  return { id: uid('g'), name:'', date: today(), dir:'low',
+           players: ids.slice(), rowCount: 9, scores };
+}
+
+const cur    = () => db.games.find(g => g.id === db.currentId) || db.games[0];
+const person = id => db.roster.find(p => p.id === id);
+const nameOf = id => (person(id) || {name:'?'}).name;
+
+/* Scores are stored per player id, so dropping someone from a game keeps
+   their column intact if they get added back. */
+function col(g, id){
+  if (!g.scores[id]) g.scores[id] = [];
+  const c = g.scores[id];
+  while (c.length < g.rowCount) c.push('');
+  return c;
+}
+
+/* ---------------- scoring ---------------- */
+function totals(g){ return g.players.map(id => col(g,id)
+  .slice(0, g.rowCount).reduce((s,v) => s + (parseFloat(v) || 0), 0)); }
+function played(g){ return g.players.map(id => col(g,id)
+  .slice(0, g.rowCount).some(v => v.trim() !== '')); }
+function ordinal(n){
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+function positions(g){
+  const t = totals(g), inPlay = played(g);
+  const live = g.players.map((_,i) => i).filter(i => inPlay[i]);
+  live.sort((a,b) => g.dir === 'low' ? t[a]-t[b] : t[b]-t[a]);
+  const pos = g.players.map(() => null);
+  live.forEach((idx,i) => {
+    pos[idx] = (i > 0 && t[idx] === t[live[i-1]]) ? pos[live[i-1]] : i+1;  // ties share
+  });
+  return pos;
+}
+
+/* ---------------- chip rows ---------------- */
+// Shared builder: `items` render as chips, `on` marks the selected ones.
+function buildChips(el, items, opts){
+  el.innerHTML = '';
+  items.forEach(item => {
+    if (opts.editing){
+      const wrap = document.createElement('div');
+      wrap.className = 'editwrap';
+      const inp = document.createElement('input');
+      inp.value = opts.label(item);
+      inp.oninput = () => opts.rename(item, inp.value);
+      wrap.appendChild(inp);
+      const x = document.createElement('button');
+      x.className = 'x'; x.textContent = '×'; x.title = 'Remove';
+      x.onclick = () => opts.remove(item);
+      wrap.appendChild(x);
+      el.appendChild(wrap);
+      return;
+    }
+    const b = document.createElement('button');
+    b.className = 'chip' + (opts.on(item) ? ' on' : '');
+    b.textContent = opts.label(item);
+    b.onclick = () => opts.pick(item);
+    el.appendChild(b);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'chip add';
+  add.textContent = '+ Add';
+  add.onclick = () => inlineAdd(add, opts.add, opts.placeholder);
+  el.appendChild(add);
+}
+
+// Click "+ Add" and type in place -- no dialog, no separate form.
+function inlineAdd(anchor, commitFn, placeholder){
+  const box = document.createElement('span');
+  box.className = 'chip newname';
+  const inp = document.createElement('input');
+  inp.placeholder = placeholder;
+  box.appendChild(inp);
+  anchor.replaceWith(box);
+  inp.focus();
+
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    const v = inp.value.trim();
+    if (v) commitFn(v);
+    render();
+  };
+  inp.onkeydown = e => {
+    if (e.key === 'Enter'){ finish(); }
+    if (e.key === 'Escape'){ done = true; render(); }
+  };
+  inp.onblur = finish;
+}
+
+function renderGameChips(){
+  buildChips($('#gameChips'), db.gameNames, {
+    editing: editGames,
+    placeholder: 'Game',
+    label: n => n,
+    on:    n => n.toLowerCase() === (cur().name || '').toLowerCase(),
+    pick:  n => { cur().name = n; save(); render(); },
+    add:   n => {
+      const dupe = db.gameNames.find(o => o.toLowerCase() === n.toLowerCase());
+      if (!dupe) db.gameNames.push(n);
+      cur().name = dupe || n;
+      save();
+    },
+    rename: (n, v) => {
+      const i = db.gameNames.indexOf(n);
+      if (i === -1) return;
+      const old = db.gameNames[i];
+      db.gameNames[i] = v;
+      // keep games that used the old label pointing at the renamed one
+      db.games.forEach(g => { if (g.name === old) g.name = v; });
+      save(); paintTitle(); renderHistory();
+    },
+    remove: n => {
+      if (!confirm(`Remove "${n}" from the game list? Saved games keep their name.`)) return;
+      db.gameNames = db.gameNames.filter(o => o !== n);
+      save(); render();
+    }
+  });
+}
+
+function renderPlayerChips(){
+  // Retired players stay in db.roster so history can still name them.
+  buildChips($('#playerChips'), db.roster.filter(p => !p.hidden), {
+    editing: editPlayers,
+    placeholder: 'Name',
+    label: p => p.name,
+    on:    p => cur().players.includes(p.id),
+    pick:  p => togglePlayer(p.id),
+    add:   name => {
+      const dupe = db.roster.find(p => p.name.toLowerCase() === name.toLowerCase());
+      const p = dupe || {id: uid('p'), name};
+      if (dupe) dupe.hidden = false;        // re-adding a retired name brings it back
+      else db.roster.push(p);
+      if (!cur().players.includes(p.id)) cur().players.push(p.id);
+      save();
+    },
+    rename: (p, v) => { p.name = v; save(); paintNames(); renderHistory(); },
+    /* Retired rather than deleted: past games still reference this id, and
+       dropping the record outright would erase those players from history. */
+    remove: p => {
+      const past = db.games.some(g => g.id !== db.currentId && g.players.includes(p.id));
+      const msg = past
+        ? `Remove ${p.name} from the player list? Past games keep their scores.`
+        : `Remove ${p.name} from the player list?`;
+      if (!confirm(msg)) return;
+      p.hidden = true;
+      const g = cur();
+      g.players = g.players.filter(id => id !== p.id);   // current card only
+      save(); render();
+    }
+  });
+}
+
+function togglePlayer(id){
+  const g = cur(), i = g.players.indexOf(id);
+  if (i === -1){ g.players.push(id); }
+  else {
+    const has = col(g,id).slice(0,g.rowCount).some(v => v.trim() !== '');
+    if (has && !confirm(`${nameOf(id)} has scores in this game. Remove from the card?`)) return;
+    g.players.splice(i,1);   // scores stay in g.scores, restored if re-added
+  }
+  save(); render();
+}
+
+/* ---------------- card ---------------- */
+function paintTitle(){
+  const g = cur(), el = $('#title');
+  el.textContent = g.name || 'Pick a game';
+  el.classList.toggle('none', !g.name);
+}
+
+function render(){
+  const g = cur();
+  paintTitle();
+  $('#gameDate').value = g.date;
+  $('#dirBtn').innerHTML = 'Winner: <b>' + (g.dir === 'low' ? 'lowest' : 'highest') + '</b>';
+  $('#editGamesBtn').textContent   = editGames   ? 'Done' : 'Edit';
+  $('#editPlayersBtn').textContent = editPlayers ? 'Done' : 'Edit';
+  renderGameChips();
+  renderPlayerChips();
+
+  const none = g.players.length === 0;
+  $('#card').hidden = none;
+  $('#nobody').hidden = !none;
+  if (none){ renderHistory(); return; }
+
+  const head = $('#head');
+  head.innerHTML = '<th class="idx"></th>';
+  g.players.forEach(id => {
+    const th = document.createElement('th');
+    const nm = document.createElement('div');
+    nm.className = 'pname'; nm.dataset.name = id; nm.textContent = nameOf(id);
+    th.appendChild(nm);
+
+    const tot = document.createElement('div');
+    tot.className = 'total'; tot.dataset.total = id;
+    th.appendChild(tot);
+
+    const rk = document.createElement('div');
+    rk.className = 'rank'; rk.dataset.rank = id;
+    th.appendChild(rk);
+
+    const x = document.createElement('button');
+    x.className = 'drop'; x.textContent = '×'; x.title = 'Remove from this game';
+    x.onclick = () => togglePlayer(id);
+    th.appendChild(x);
+    head.appendChild(th);
+  });
+
+  const body = $('#body');
+  body.innerHTML = '';
+  for (let r = 0; r < g.rowCount; r++){
+    const tr = document.createElement('tr');
+    const idx = document.createElement('td');
+    idx.className = 'idx'; idx.textContent = r+1;
+    tr.appendChild(idx);
+    g.players.forEach((id,p) => {
+      const td = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.className = 'cell';
+      inp.value = col(g,id)[r] || '';
+      inp.inputMode = 'numeric';
+      inp.dataset.r = r; inp.dataset.p = p;
+      inp.oninput = () => { col(g,id)[r] = inp.value; save(); recalc(); };
+      inp.onkeydown = e => nav(e, r, p);
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+    const pad = document.createElement('td');
+    pad.className = 'pad';
+    tr.appendChild(pad);
+    body.appendChild(tr);
+  }
+
+  recalc();
+  renderHistory();
+}
+
+// Enter / arrows move down the same player's column, so you can key in
+// one player's whole card without reaching for the screen.
+function nav(e, r, p){
+  let tr = null;
+  if (e.key === 'Enter' || e.key === 'ArrowDown') tr = r+1;
+  else if (e.key === 'ArrowUp') tr = r-1;
+  else return;
+  const next = document.querySelector(`.cell[data-r="${tr}"][data-p="${p}"]`);
+  if (next){ e.preventDefault(); next.focus(); next.select(); }
+}
+
+function paintNames(){
+  cur().players.forEach(id => {
+    const el = document.querySelector(`[data-name="${id}"]`);
+    if (el) el.textContent = nameOf(id);
+  });
+}
+
+function recalc(){
+  const g = cur(), t = totals(g), pos = positions(g), inPlay = played(g);
+  const ranked = pos.filter(x => x !== null);
+  const best = ranked.length ? Math.min(...ranked) : null;
+  g.players.forEach((id,i) => {
+    const tot = document.querySelector(`[data-total="${id}"]`);
+    if (tot) tot.textContent = inPlay[i] ? t[i] : '';
+    const rk = document.querySelector(`[data-rank="${id}"]`);
+    if (rk){
+      rk.textContent = pos[i] ? ordinal(pos[i]) : '';
+      rk.classList.toggle('lead', best !== null && pos[i] === best);
+    }
+  });
+}
+
+/* ---------------- history ---------------- */
+function renderHistory(){
+  const el = $('#history');
+  const list = db.games.slice().sort((a,b) => (b.date+b.id).localeCompare(a.date+a.id));
+  const real = list.filter(g => g.id !== db.currentId || started(g));
+  el.innerHTML = '';
+  if (!real.length){ el.innerHTML = '<div class="empty">No games yet.</div>'; return; }
+  real.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'game' + (g.id === db.currentId ? ' on' : '');
+    div.onclick = e => {
+      if (e.target.classList.contains('x')) return;
+      db.currentId = g.id; editPlayers = editGames = false;
+      save(); render(); window.scrollTo(0,0);
+    };
+    div.innerHTML =
+      `<span class="d">${g.date}</span>` +
+      `<span class="n">${esc(g.name || 'Untitled')}</span>` +
+      `<span class="w">${esc(summary(g))}</span>`;
+    const x = document.createElement('button');
+    x.className = 'x'; x.textContent = '×'; x.title = 'Delete game';
+    x.onclick = () => {
+      if (!confirm(`Delete "${g.name || 'Untitled'}" (${g.date})?`)) return;
+      db.games = db.games.filter(o => o.id !== g.id);
+      if (!db.games.length)
+        db.games = [blank(db.roster.filter(p => !p.hidden).map(p => p.id))];
+      if (db.currentId === g.id) db.currentId = db.games[0].id;
+      save(); render();
+    };
+    div.appendChild(x);
+    el.appendChild(div);
+  });
+}
+function started(g){
+  return g.players.some(id => col(g,id).slice(0,g.rowCount).some(v => v.trim() !== ''));
+}
+function summary(g){
+  if (!started(g)) return 'not started';
+  const t = totals(g), pos = positions(g);
+  return g.players
+    .map((id,i) => ({n: nameOf(id), t: t[i], p: pos[i]}))
+    .filter(o => o.p)
+    .sort((a,b) => a.p - b.p)
+    .map(o => `${o.n} ${o.t}`)
+    .join('  ·  ');
+}
+function esc(s){
+  return String(s).replace(/[&<>"]/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+/* ---------------- actions ---------------- */
+$('#editGamesBtn').onclick   = () => { editGames = !editGames; render(); };
+$('#editPlayersBtn').onclick = () => { editPlayers = !editPlayers; render(); };
+$('#gameDate').onchange = e => { cur().date = e.target.value; save(); renderHistory(); };
+$('#dirBtn').onclick = () => {
+  const g = cur();
+  g.dir = g.dir === 'low' ? 'high' : 'low';
+  save(); render();
+};
+
+$('#addRow').onclick = () => { cur().rowCount++; save(); render(); };
+$('#delRow').onclick = () => {
+  const g = cur();
+  if (g.rowCount <= 1) return;
+  const last = g.players.map(id => col(g,id)[g.rowCount-1] || '');
+  if (last.some(v => v.trim() !== '') && !confirm('Last row has scores. Remove it?')) return;
+  g.rowCount--;
+  g.players.forEach(id => { g.scores[id].length = g.rowCount; });
+  save(); render();
+};
+
+$('#newGame').onclick = () => {
+  const prev = cur();
+  const g = blank(prev.players);
+  g.name = prev.name;                  // same game, next session
+  g.dir  = prev.dir;
+  g.rowCount = prev.rowCount;
+  g.players.forEach(id => g.scores[id] = Array(g.rowCount).fill(''));
+  db.games.push(g); db.currentId = g.id;
+  save(); render(); window.scrollTo(0,0);
+};
+
+$('#clear').onclick = () => {
+  const g = cur();
+  if (!confirm('Clear all scores in this game?')) return;
+  g.players.forEach(id => g.scores[id] = Array(g.rowCount).fill(''));
+  save(); render();
+};
+
+$('#copy').onclick = () => {
+  const g = cur(), t = totals(g), pos = positions(g);
+  const rows = [];
+  for (let r = 0; r < g.rowCount; r++)
+    rows.push([r+1, ...g.players.map(id => col(g,id)[r] || '')].join('\t'));
+  const lines = [
+    `${g.name || 'Untitled'}\t${g.date}`,
+    ['#', ...g.players.map(nameOf)].join('\t'),
+    ...rows,
+    ['Total', ...t].join('\t'),
+    ['Position', ...pos.map(p => p ? ordinal(p) : '')].join('\t')
+  ];
+  navigator.clipboard.writeText(lines.join('\n'))
+    .then(() => toast('Copied'))
+    .catch(() => toast('Copy failed'));
+};
+
+let toastT;
+function toast(msg){
+  const el = $('#toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+boot();
+
+// Offline shell: caches the app itself, not the data (that's server-side
+// now). Lets the page still open with no signal, even though scores won't
+// load until the network comes back.
+function registerSW(){
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+</script>
+</body>
+</html>
