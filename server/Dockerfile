@@ -11,7 +11,7 @@ COPY main.go .
 # final image tiny (no libc needed for the sqlite driver itself).
 RUN CGO_ENABLED=0 go build -o /out/scorecard-server .
 
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian12@sha256:d75cdd72874d4790092fcb1b058493ecf6bb5bf2b2b897045b00ff01d91843f2
 COPY --from=build --chmod=755 /out/scorecard-server /app/scorecard-server
 # --chmod: the source files are 640 on disk (no "other" read bit), and the
 # pod runs as uid 1000 while COPY lands them owned by root -- without this,
