@@ -70,7 +70,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
-func env(k, def string) string {
+func envOr(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
 	}
