@@ -28,9 +28,9 @@ CREATE TABLE IF NOT EXISTS store (
 );`
 
 func main() {
-	dbPath := env("DB_PATH", "/data/scores.db")
-	webDir := env("WEB_DIR", "./web")
-	addr := ":" + env("PORT", "8080")
+	dbPath := envOr("DB_PATH", "/data/scores.db")
+	webDir := envOr("WEB_DIR", "./web")
+	addr := ":" + envOr("PORT", "8080")
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
