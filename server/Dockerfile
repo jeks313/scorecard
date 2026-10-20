@@ -2,7 +2,7 @@
 #
 # Build:  ./build.sh
 # Test:   podman run --rm -p 8080:8080 -v /tmp/scores:/data ghcr.io/jeks313/scorecard:latest
-FROM docker.io/library/golang:1.27-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS build
+FROM docker.io/library/golang:1.27-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
