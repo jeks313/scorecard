@@ -2,7 +2,7 @@ module scorecard-server
 
 go 1.27.2
 
-require modernc.org/sqlite v1.62.0
+require modernc.org/sqlite v1.63.0
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
